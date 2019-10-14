@@ -20,7 +20,7 @@ var videoInput;
 var videoOutput;
 var webRtcPeer;
 var state = null;
-
+var filter ="faceoverlay";
 const I_CAN_START = 0;
 const I_CAN_STOP = 1;
 const I_AM_STARTING = 2;
@@ -142,14 +142,26 @@ function stop() {
 function addtext() {
 	console.log("Add custom text ...");	
 	if (webRtcPeer) {
-
+		faceoverlay ="opencv";
 		var message = {
 			id : 'addtext'
 		}
 		sendMessage(message);
 	}
 }
+function changefilter(){
+	console.log("change filter ...");	
+	if (webRtcPeer) {
+		if(faceoverlay == 'opencv') faceoverlay ='faceoverlay';
+		else faceoverlay = 'opencv';
 
+		var message = {
+			id : 'changefilter',
+			filter: faceoverlay
+		}
+		sendMessage(message);
+	}
+}
 function setState(nextState) {
 	switch (nextState) {
 	case I_CAN_START:

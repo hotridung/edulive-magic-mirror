@@ -64,36 +64,37 @@ public class MagicMirrorHandler extends TextWebSocketHandler {
     JsonObject jsonMessage = gson.fromJson(message.getPayload(), JsonObject.class);
 
     log.debug("Incoming message: {}", jsonMessage);
-
     switch (jsonMessage.get("id").getAsString()) {
-      case "start":
-        start(session, jsonMessage);
-        break;
-      case "addtext":
-        addtext(session, jsonMessage);
-        break;
-      case "stop": {
-        UserSession user = users.remove(session.getId());
-        if (user != null) {
-          user.release();
-        }
-        break;
+    case "start":
+      start(session, jsonMessage);
+      break;
+    case "addtext":
+      addtext(session, jsonMessage);
+      break;
+    case "changefilter":
+      changefilter(session, jsonMessage);
+      break;
+    case "stop": {
+      UserSession user = users.remove(session.getId());
+      if (user != null) {
+        user.release();
       }
-      case "onIceCandidate": {
-        JsonObject jsonCandidate = jsonMessage.get("candidate").getAsJsonObject();
+      break;
+    }
+    case "onIceCandidate": {
+      JsonObject jsonCandidate = jsonMessage.get("candidate").getAsJsonObject();
 
-        UserSession user = users.get(session.getId());
-        if (user != null) {
-          IceCandidate candidate = new IceCandidate(jsonCandidate.get("candidate").getAsString(),
-              jsonCandidate.get("sdpMid").getAsString(),
-              jsonCandidate.get("sdpMLineIndex").getAsInt());
-          user.addCandidate(candidate);
-        }
-        break;
+      UserSession user = users.get(session.getId());
+      if (user != null) {
+        IceCandidate candidate = new IceCandidate(jsonCandidate.get("candidate").getAsString(),
+            jsonCandidate.get("sdpMid").getAsString(), jsonCandidate.get("sdpMLineIndex").getAsInt());
+        user.addCandidate(candidate);
       }
-      default:
-        sendError(session, "Invalid message with id " + jsonMessage.get("id").getAsString());
-        break;
+      break;
+    }
+    default:
+      sendError(session, "Invalid message with id " + jsonMessage.get("id").getAsString());
+      break;
     }
   }
 
@@ -126,16 +127,15 @@ public class MagicMirrorHandler extends TextWebSocketHandler {
       });
 
       // Media logic
-       FaceOverlayFilter faceOverlayFilter = new FaceOverlayFilter.Builder(pipeline).build();
+      FaceOverlayFilter faceOverlayFilter = new FaceOverlayFilter.Builder(pipeline).build();
 
       // String appServerUrl = System.getProperty("app.server.url",
-      //     MagicMirrorApp.DEFAULT_APP_SERVER_URL);
-       String appServerUrl = "http://files.openvidu.io";
-       faceOverlayFilter.setOverlayedImage(appServerUrl + "/img/mario-wings.png", -0.35F, -1.2F,
-           1.6F, 1.6F);
+      // MagicMirrorApp.DEFAULT_APP_SERVER_URL);
+      String appServerUrl = "http://files.openvidu.io";
+      faceOverlayFilter.setOverlayedImage(appServerUrl + "/img/mario-wings.png", -0.35F, -1.2F, 1.6F, 1.6F);
 
-       webRtcEndpoint.connect(faceOverlayFilter);
-       faceOverlayFilter.connect(webRtcEndpoint);
+      webRtcEndpoint.connect(faceOverlayFilter);
+      faceOverlayFilter.connect(webRtcEndpoint);
       String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
       String sdpAnswer = webRtcEndpoint.processOffer(sdpOffer);
 
@@ -154,23 +154,66 @@ public class MagicMirrorHandler extends TextWebSocketHandler {
     }
   }
 
+  private void changefilter(final WebSocketSession session, JsonObject jsonMessage) {
+    try {
+
+      // User session
+      UserSession user = users.get(session.getId());
+      MediaPipeline pipeline = user.getMediaPipeline();
+      WebRtcEndpoint webRtcEndpoint = user.getWebRtcEndpoint();
+      switch (jsonMessage.get("filter").getAsString()) {
+      case "opencv":
+        OpencvPluginSample myFilter = new OpencvPluginSample.Builder(pipeline).build();
+        myFilter.setFilterType(1);
+        webRtcEndpoint.connect(myFilter);
+        myFilter.connect(webRtcEndpoint);
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+          @Override
+          public void run() {
+            myFilter.setCustomText("Currnet time: " + new Date(), 10, 20);
+
+          }
+        }, 0, 2000);
+        break;
+      case "faceoverlay":
+        // Media logic
+        FaceOverlayFilter faceOverlayFilter = new FaceOverlayFilter.Builder(pipeline).build();
+
+        // String appServerUrl = System.getProperty("app.server.url",
+        // MagicMirrorApp.DEFAULT_APP_SERVER_URL);
+        String appServerUrl = "http://files.openvidu.io";
+        faceOverlayFilter.setOverlayedImage(appServerUrl + "/img/mario-wings.png", -0.35F, -1.2F, 1.6F, 1.6F);
+
+        webRtcEndpoint.connect(faceOverlayFilter);
+        faceOverlayFilter.connect(webRtcEndpoint);
+        break;
+      default:
+        break;
+      }
+
+    } catch (Throwable t) {
+      sendError(session, t.getMessage());
+    }
+  }
+
   private void addtext(final WebSocketSession session, JsonObject jsonMessage) {
     try {
       // User session
       UserSession user = users.get(session.getId());
-      MediaPipeline pipeline = user.getMediaPipeline();      
-      WebRtcEndpoint webRtcEndpoint = user.getWebRtcEndpoint();           
+      MediaPipeline pipeline = user.getMediaPipeline();
+      WebRtcEndpoint webRtcEndpoint = user.getWebRtcEndpoint();
 
       OpencvPluginSample myFilter = new OpencvPluginSample.Builder(pipeline).build();
-      myFilter.setFilterType(1);      
+      myFilter.setFilterType(1);
       webRtcEndpoint.connect(myFilter);
       myFilter.connect(webRtcEndpoint);
       Timer timer = new Timer();
-      timer.schedule(new TimerTask(){      
+      timer.schedule(new TimerTask() {
         @Override
         public void run() {
-          myFilter.setCustomText("Currnet time: " + new Date(), 10,20);
-          
+          myFilter.setCustomText("Currnet time: " + new Date(), 10, 20);
+
         }
       }, 0, 2000);
 
